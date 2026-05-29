@@ -1,0 +1,31 @@
+# Maven build output
+target/
+
+# IntelliJ IDEA project files
+.idea/
+*.iml
+out/
+
+# Eclipse project files (just in case)
+.project
+.classpath
+.settings/
+
+# VSCode
+.vscode/
+
+# OS-specific files
+.DS_Store
+Thumbs.db
+
+# Logs
+logs/
+*.log
+
+# JARs (your build system will produce these)
+*.jar
+
+# Backup files
+*.bak
+*.tmp
+
