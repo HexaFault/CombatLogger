@@ -1,0 +1,37 @@
+# Time (in seconds) a player stays in combat after being hit
+combat-time: 15
+
+# Should melee hits put players into combat?
+melee-tagging: true
+
+# Should projectile hits put players into combat?
+projectile-tagging: true
+
+# Per-projectile control (keys are Bukkit entity types in lowercase)
+projectiles:
+  arrow: true
+  trident: true
+  snowball: false
+  egg: false
+  fishing_hook: true
+  splash_potion: true
+  lingering_potion: true
+
+# What happens if a player logs out during combat?
+# Options: kill, drop-inventory, run-command, none
+logout-action: "kill"
+
+# If logout-action = run-command, these commands will be executed as console.
+# %player% will be replaced with the player's name.
+logout-commands:
+  - "broadcast %player% logged out during combat!"
+  - "kill %player%"
+
+# Commands blocked while in combat (without leading slash)
+blocked-commands:
+  - spawn
+  - home
+  - tpa
+  - back
+  - warp
+

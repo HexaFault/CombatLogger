@@ -1,0 +1,14 @@
+name: CombatLogger
+main: dev.rob2.combatlogger.CombatLogger
+version: 1.0.0
+api-version: 1.20
+
+commands:
+  combat:
+    description: Shows your combat status
+    usage: /combat
+
+permissions:
+  combatlogger.bypass:
+    description: Allows bypassing combat restrictions
+    default: op
