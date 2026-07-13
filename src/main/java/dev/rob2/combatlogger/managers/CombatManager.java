@@ -1,119 +1,68 @@
-package dev.rob2.combatlogger.managers;
+package dev.rob2.combatlogger;
 
-import dev.rob2.combatlogger.CombatLogger;
+import dev.rob2.combatlogger.commands.CombatCommand;
+import dev.rob2.combatlogger.listeners.CombatListener;
+import dev.rob2.combatlogger.listeners.CommandBlocker;
+import dev.rob2.combatlogger.listeners.LogoutListener;
+import dev.rob2.combatlogger.managers.CombatManager;
+import dev.rob2.combatlogger.util.ActionBarUtil;
 import org.bukkit.Bukkit;
-import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.entity.Player;
-import org.bukkit.inventory.ItemStack;
+import org.bukkit.plugin.java.JavaPlugin;
 
-import java.util.*;
+import java.util.UUID;
 
-public class CombatManager {
+public class CombatLogger extends JavaPlugin {
 
-    private final CombatLogger plugin;
-    private final Map<UUID, Long> combatMap = new HashMap<>();
+    private static CombatLogger instance;   // NEW
+    private CombatManager combatManager;
 
-    private long combatTimeMillis;
-    private boolean meleeTagging;
-    private boolean projectileTagging;
-    private Set<String> enabledProjectiles;
-    private List<String> blockedCommands;
-    private String logoutAction;
-    private List<String> logoutCommands;
+    @Override
+    public void onEnable() {
+        instance = this;                    // NEW
 
-    public CombatManager(CombatLogger plugin) {
-        this.plugin = plugin;
-    }
+        saveDefaultConfig();
+        this.combatManager = new CombatManager(this);
+        combatManager.loadSettings();
 
-    public void loadSettings() {
-        combatTimeMillis = plugin.getConfig().getInt("combat-time", 15) * 1000L;
-        meleeTagging = plugin.getConfig().getBoolean("melee-tagging", true);
-        projectileTagging = plugin.getConfig().getBoolean("projectile-tagging", true);
+        Bukkit.getPluginManager().registerEvents(new CombatListener(this, combatManager), this);
+        Bukkit.getPluginManager().registerEvents(new CommandBlocker(combatManager), this);
+        Bukkit.getPluginManager().registerEvents(new LogoutListener(combatManager), this);
 
-        enabledProjectiles = new HashSet<>();
-        ConfigurationSection projSec = plugin.getConfig().getConfigurationSection("projectiles");
-        if (projSec != null) {
-            for (String key : projSec.getKeys(false)) {
-                if (projSec.getBoolean(key)) {
-                    enabledProjectiles.add(key.toLowerCase());
-                }
-            }
+        if (getCommand("combat") != null) {
+            getCommand("combat").setExecutor(new CombatCommand(combatManager));
         }
 
-        blockedCommands = plugin.getConfig().getStringList("blocked-commands");
-        logoutAction = plugin.getConfig().getString("logout-action", "kill").toLowerCase();
-        logoutCommands = plugin.getConfig().getStringList("logout-commands");
-    }
+        // Cleanup expired tags
+        Bukkit.getScheduler().runTaskTimer(this, combatManager::cleanupExpiredTags, 20L, 20L);
 
-    public void tag(UUID uuid) {
-        combatMap.put(uuid, System.currentTimeMillis());
-    }
-
-    public boolean isInCombat(UUID uuid) {
-        Long last = combatMap.get(uuid);
-        if (last == null) return false;
-        return System.currentTimeMillis() - last <= combatTimeMillis;
-    }
-
-    public long getRemainingSeconds(UUID uuid) {
-        Long last = combatMap.get(uuid);
-        if (last == null) return 0;
-        long remaining = (combatTimeMillis - (System.currentTimeMillis() - last)) / 1000;
-        return Math.max(remaining, 0);
-    }
-
-    public void cleanupExpiredTags() {
-        long now = System.currentTimeMillis();
-        combatMap.entrySet().removeIf(e -> now - e.getValue() > combatTimeMillis);
-    }
-
-    public Set<UUID> getTaggedPlayers() {
-        return new HashSet<>(combatMap.keySet());
-    }
-
-    public boolean isMeleeTaggingEnabled() {
-        return meleeTagging;
-    }
-
-    public boolean isProjectileTaggingEnabled() {
-        return projectileTagging;
-    }
-
-    public boolean isProjectileTypeEnabled(String type) {
-        return enabledProjectiles.contains(type.toLowerCase());
-    }
-
-    public List<String> getBlockedCommands() {
-        return blockedCommands;
-    }
-
-    public void handleLogout(Player player) {
-        UUID uuid = player.getUniqueId();
-        if (!isInCombat(uuid)) return;
-
-        switch (logoutAction) {
-            case "kill" -> player.setHealth(0.0);
-            case "drop-inventory" -> {
-                for (ItemStack item : player.getInventory().getContents()) {
-                    if (item != null) {
-                        player.getWorld().dropItemNaturally(player.getLocation(), item);
-                    }
-                }
-                player.getInventory().clear();
-            }
-            case "run-command" -> {
-                for (String cmd : logoutCommands) {
-                    String parsed = cmd.replace("%player%", player.getName());
-                    Bukkit.dispatchCommand(Bukkit.getConsoleSender(), parsed);
+        // ActionBar countdown
+        Bukkit.getScheduler().runTaskTimer(this, () -> {
+            for (UUID uuid : combatManager.getTaggedPlayers()) {
+                Player p = Bukkit.getPlayer(uuid);
+                if (p == null) continue;
+                long remaining = combatManager.getRemainingSeconds(uuid);
+                if (remaining > 0) {
+                    ActionBarUtil.sendActionBar(p, "§cIn combat: §e" + remaining + "s");
                 }
             }
-            case "none" -> {
-                // do nothing
-            }
-            default -> player.setHealth(0.0);
-        }
+        }, 20L, 20L);
 
-        combatMap.remove(uuid);
+        getLogger().info("CombatLogger enabled.");
+    }
+
+    @Override
+    public void onDisable() {
+        getLogger().info("CombatLogger disabled.");
+    }
+
+    // --- NEW: API accessors for other plugins ---
+    public static CombatLogger getInstance() {
+        return instance;
+    }
+
+    public CombatManager getCombatManager() {
+        return combatManager;
     }
 }
 
